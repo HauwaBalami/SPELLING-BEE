@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spelling Game</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 bg-cover bg-center"
+    style="background-image: url('images/4n6a_hvt9_200308.jpg');">
+
+    <!-- Game Container -->
+    <div id="game-container" class="bg-white p-6 rounded-lg shadow-lg w-full max-w-xl">
+        <!-- Image Display -->
+        <div id="image-container" class="mb-6 flex justify-center">
+            <img id="current-image" src="" alt="Spelling Word Image"
+                class="w-48 h-48 md:w-64 md:h-64 object-cover rounded">
+        </div>
+
+        <!-- Spelling Boxes -->
+        <div id="spelling-boxes" class="mb-6 flex justify-center space-x-2 text-2xl font-bold">
+            <!-- Spelling letters will appear here -->
+        </div>
+
+        <!-- Alphabet Buttons -->
+        <div id="alphabet-container" class="mb-6 grid grid-cols-5 md:grid-cols-6 gap-2 justify-items-center">
+            <!-- Alphabet buttons will be dynamically created here -->
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="mb-6 flex flex-wrap justify-between w-full space-y-2 md:space-y-0">
+            <button id="cancel-button"
+                class="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-700 flex-1 md:flex-none">Cancel</button>
+            <button id="clear-button"
+                class="bg-yellow-500 text-white py-2 px-4 rounded hover:bg-yellow-700 flex-1 md:flex-none">Clear</button>
+            <button id="submit-button"
+                class="bg-green-500 text-white py-2 px-4 rounded hidden hover:bg-green-700 flex-1 md:flex-none">Submit</button>
+        </div>
+
+        <!-- Timer -->
+        <div id="timer" class="text-center text-lg font-semibold mb-4">60</div>
+
+        <!-- Feedback Section -->
+        <div id="feedback-section" class="hidden text-center text-lg font-semibold mb-4"></div>
+
+        <!-- Next Button -->
+        <div class="text-center mb-4">
+            <button id="next-button"
+                class="bg-yellow-500 text-white py-2 px-4 rounded hidden hover:bg-blue-700">Next</button>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div id="report-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden">
+        <div class="bg-white rounded-lg p-8 max-w-md w-full">
+            <h2 class="text-2xl font-bold mb-4">Game Report</h2>
+            <ul id="report-list" class="list-disc list-inside mb-4"></ul>
+            <button id="close-report-button"
+                class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-700">Close</button>
+        </div>
+    </div>
+
+    <script>
+        const images = [
+            { src: 'images/fish-30828_640.png', word: 'FISH' },
+            { src: 'images/egg-157224_640.png', word: 'EGG' },
+            { src: 'images/football-157930_640.png', word: 'BALL' },
+            { src: 'images/goose-3477674_640.jpg', word: 'GOOSE' },
+            { src: 'images/ice-cream-2934210_640.jpg', word: 'ICECREAM' },
+            { src: 'images/house-1815147_640.png', word: 'HOUSE' },
+            { src: 'images/monkey-4187960_640.png', word: 'MONKEY' },
+            { src: 'images/orange-4547207_640.png', word: 'ORANGE' },
+            { src: 'images/car-40241_640.png', word: 'CAR' },
+            { src: 'images/doll-6047344_640.png', word: 'DOLL' }
+        ];
+
+        const MAX_WORDS = 10; // Limit the game to 5 words
+
+        let currentImageIndex = 0;
+        let currentWord = '';
+        let userSpelling = '';
+        let correctAnswers = 0;
+        let timer;
+
+        const imageElement = document.getElementById('current-image');
+        const spellingBoxes = document.getElementById('spelling-boxes');
+        const alphabetContainer = document.getElementById('alphabet-container');
+        const timerElement = document.getElementById('timer');
+        const feedbackSection = document.getElementById('feedback-section');
+        const nextButton = document.getElementById('next-button');
+        const reportList = document.getElementById('report-list');
+        const reportModal = document.getElementById('report-modal');
+        const closeReportButton = document.getElementById('close-report-button');
+        const cancelButton = document.getElementById('cancel-button');
+        const clearButton = document.getElementById('clear-button');
+        const submitButton = document.getElementById('submit-button');
+
+        // Initialize the alphabet buttons
+        const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        alphabet.split('').forEach(letter => {
+            const button = document.createElement('button');
+            button.className = 'alphabet-btn bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 px-3 rounded hover:bg-blue-700';
+            button.innerText = letter;
+            button.addEventListener('click', () => handleLetterClick(letter));
+            alphabetContainer.appendChild(button);
+        });
+
+        // Fisher-Yates Shuffle Algorithm to randomize array
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Start the game
+        function startGame() {
+            shuffle(images); // Shuffle the images array
+            currentImageIndex = 0;
+            correctAnswers = 0;
+            loadNextImage();
+        }
+
+        function loadNextImage() {
+            if (currentImageIndex >= MAX_WORDS) {
+                displayReport();
+                return;
+            }
+
+            const currentImage = images[currentImageIndex];
+            imageElement.src = currentImage.src;
+            currentWord = currentImage.word;
+            userSpelling = '';
+            spellingBoxes.innerHTML = '';
+            feedbackSection.classList.add('hidden');
+            nextButton.classList.add('hidden');
+            alphabetContainer.classList.remove('hidden');
+            submitButton.classList.add('hidden');
+            timerElement.innerText = '60';
+
+            // Create empty boxes for each letter in the word
+            currentWord.split('').forEach(() => {
+                const box = document.createElement('span');
+                box.className = 'border-b-2 border-gray-600 px-4';
+                box.innerText = '_'; // Placeholder for the letter
+                spellingBoxes.appendChild(box);
+            });
+
+            // Clear existing countdown
+            if (window.countdownInterval) {
+                clearInterval(window.countdownInterval);
+            }
+
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                handleSpellingResult(false);
+            }, 60000);
+
+            // Start countdown
+            startCountdown();
+        }
+
+        function handleLetterClick(letter) {
+            if (userSpelling.length < currentWord.length) {
+                userSpelling += letter;
+                updateSpellingBoxes();
+            }
+
+            // Show submit button only if the word length matches
+            if (userSpelling.length === currentWord.length) {
+                submitButton.classList.remove('hidden');
+            }
+        }
+
+        function updateSpellingBoxes() {
+            const boxes = spellingBoxes.children;
+            for (let i = 0; i < boxes.length; i++) {
+                boxes[i].innerText = userSpelling[i] || '_'; // Show the letter or a placeholder
+            }
+        }
+
+        // Cancel the last entered letter
+        cancelButton.addEventListener('click', () => {
+            if (userSpelling.length > 0) {
+                userSpelling = userSpelling.slice(0, -1);
+                updateSpellingBoxes();
+                submitButton.classList.add('hidden');
+            }
+        });
+
+        // Clear the entire spelling
+        clearButton.addEventListener('click', () => {
+            userSpelling = '';
+            updateSpellingBoxes();
+            submitButton.classList.add('hidden');
+        });
+
+        // Submit the word
+        submitButton.addEventListener('click', () => {
+            clearTimeout(timer);
+            handleSpellingResult(userSpelling === currentWord);
+        });
+
+        function startCountdown() {
+            let timeLeft = 60;
+            timerElement.innerText = timeLeft;
+            window.countdownInterval = setInterval(() => {
+                timeLeft--;
+                timerElement.innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(window.countdownInterval);
+                    handleSpellingResult(false);
+                }
+            }, 1000);
+        }
+
+        function handleSpellingResult(isCorrect) {
+            alphabetContainer.classList.add('hidden');
+            feedbackSection.classList.remove('hidden');
+            nextButton.classList.remove('hidden');
+            submitButton.classList.add('hidden');
+            feedbackSection.innerText = isCorrect ? 'Correct!' : `Incorrect! The correct spelling is ${currentWord}`;
+
+            if (isCorrect) correctAnswers++;
+
+            nextButton.onclick = () => {
+                currentImageIndex++;
+                if (currentImageIndex < MAX_WORDS) {
+                    loadNextImage();
+                } else {
+                    displayReport();
+                }
+            };
+
+            clearInterval(window.countdownInterval);
+        }
+
+        function displayReport() {
+            reportList.innerHTML = ''; // Clear previous report
+            images.slice(0, MAX_WORDS).forEach((image, index) => {
+                const reportItem = document.createElement('li');
+                reportItem.innerText = `Image ${index + 1}: ${image.word}`;
+                reportList.appendChild(reportItem);
+            });
+
+            // Calculate and display the summary
+            const totalWords = currentImageIndex;
+            const accuracy = ((correctAnswers / totalWords) * 100).toFixed(2);
+            const summaryMessage = `You spelled ${correctAnswers} out of ${totalWords} words correctly. Your accuracy is ${accuracy}%. ${accuracy >= 80 ? 'Great job!' : 'Keep practicing!'}`;
+
+            const summaryItem = document.createElement('li');
+            summaryItem.classList.add('font-bold', 'mt-4');
+            summaryItem.innerText = summaryMessage;
+            reportList.appendChild(summaryItem);
+
+            // Show the report modal
+            reportModal.classList.remove('hidden');
+        }
+
+        // Close the report modal
+        closeReportButton.addEventListener('click', () => {
+            reportModal.classList.add('hidden');
+            startGame(); // Restart the game
+        });
+
+        // Start the game when the page loads
+        window.onload = startGame;
+    </script>
+</body>
+
+</html>
